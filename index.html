@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Private Photo, Notes & Expense Calendar - fully offline" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.json" />
+  <title>PhotoCalendar + Expenses</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-hover: #334155;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --danger: #f87171;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --border: #334155;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh; overflow-x: hidden; line-height: 1.5;
+    }
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { font-weight: 700; font-size: 1.1rem; }
+    .logo span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-actions { display: flex; gap: 8px; }
+    button, .btn {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px 14px; font-size: 0.9rem; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; font-weight: 500;
+    }
+    button:active { transform: scale(0.97); }
+    button.primary {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1); border: none; color: white;
+    }
+    button.danger {
+      background: rgba(248,113,113,0.15); border-color: var(--danger); color: var(--danger);
+    }
+    button.icon { padding: 8px; width: 40px; height: 40px; justify-content: center; }
+    main { padding: 16px; max-width: 640px; margin: 0 auto; padding-bottom: 100px; }
+
+    /* Calendar */
+    .calendar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .calendar-header h2 { font-size: 1.25rem; font-weight: 600; }
+    .weekdays {
+      display: grid; grid-template-columns: repeat(7, 1fr); text-align: center;
+      font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 500;
+    }
+    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .day {
+      aspect-ratio: 1; border-radius: 12px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-size: 0.95rem; cursor: pointer;
+      position: relative; background: var(--card); border: 1px solid transparent;
+    }
+    .day:hover, .day:active { background: var(--card-hover); }
+    .day.other-month { opacity: 0.35; }
+    .day.today { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+    .day.selected {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; border-color: transparent;
+    }
+    .day.has-data::after {
+      content: ''; position: absolute; bottom: 5px; width: 5px; height: 5px;
+      border-radius: 50%; background: var(--accent);
+    }
+    .day.selected.has-data::after { background: white; }
+    .day.has-expense::before {
+      content: '₹'; position: absolute; top: 3px; right: 4px; font-size: 0.6rem; color: var(--warning);
+    }
+
+    /* Day Panel */
+    .day-panel {
+      margin-top: 24px; background: var(--card); border-radius: var(--radius);
+      border: 1px solid var(--border); overflow: hidden; animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .day-panel-header {
+      padding: 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .day-panel-header h3 { font-size: 1.05rem; }
+    .day-panel-body { padding: 16px; }
+    textarea, input[type="text"], input[type="number"] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; color: var(--text); padding: 12px 14px; font-size: 1rem;
+      font-family: inherit;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+
+    /* Expense Section */
+    .expense-section { margin-top: 20px; }
+    .expense-section h4 {
+      font-size: 0.95rem; margin-bottom: 12px; color: var(--warning);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .expense-form {
+      display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; margin-bottom: 12px;
+    }
+    .expense-form select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); padding: 10px; font-size: 0.95rem;
+    }
+    .expense-list { display: flex; flex-direction: column; gap: 8px; }
+    .expense-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.9rem;
+    }
+    .expense-item .cat { font-weight: 600; color: var(--accent); }
+    .expense-item .amt { font-weight: 700; color: var(--warning); }
+    .expense-item .del {
+      background: none; border: none; color: var(--danger); font-size: 1.1rem; padding: 4px 8px;
+    }
+    .daily-total {
+      margin-top: 14px; padding: 12px; background: rgba(251, 191, 36, 0.12);
+      border-radius: 12px; display: flex; justify-content: space-between; align-items: center;
+      font-weight: 700; font-size: 1.05rem;
+    }
+    .daily-total span { color: var(--warning); }
+
+    /* Summary cards */
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px;
+    }
+    .summary-card {
+      background: var(--bg); border-radius: 12px; padding: 12px; text-align: center;
+    }
+    .summary-card .label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; }
+    .summary-card .value { font-size: 1.1rem; font-weight: 700; color: var(--warning); }
+
+    /* Photos */
+    .photo-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 10px; margin-top: 12px;
+    }
+    .photo-item { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--bg); }
+    .photo-item img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-item .delete-photo {
+      position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7);
+      border: none; color: white; width: 26px; height: 26px; border-radius: 50%;
+      font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0;
+    }
+    .add-photo-btn {
+      aspect-ratio: 1; border: 2px dashed var(--border); border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; color: var(--text-muted); cursor: pointer; font-size: 0.8rem; background: transparent;
+    }
+
+    /* List & Settings */
+    .section { margin-top: 24px; }
+    .section h3 { font-size: 0.95rem; margin-bottom: 12px; color: var(--text-muted); font-weight: 500; }
+    .search-box { position: relative; margin-bottom: 16px; }
+    .search-box input {
+      width: 100%; background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 16px 12px 42px; color: var(--text); font-size: 1rem;
+    }
+    .search-box::before {
+      content: '🔍'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    }
+    .entry-list { display: flex; flex-direction: column; gap: 10px; }
+    .entry-card {
+      background: var(--card); border-radius: 14px; padding: 14px;
+      border: 1px solid var(--border); cursor: pointer;
+    }
+    .entry-card .date { font-size: 0.8rem; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+    .entry-card .preview {
+      font-size: 0.9rem; display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .entry-card .meta { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 12px; }
+
+    /* Bottom nav */
+    nav.bottom {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around;
+      padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); z-index: 50;
+    }
+    nav.bottom button {
+      background: transparent; border: none; flex-direction: column; gap: 2px;
+      font-size: 0.7rem; color: var(--text-muted); padding: 6px 12px; border-radius: 12px;
+    }
+    nav.bottom button.active { color: var(--accent); }
+    nav.bottom button span.icon { font-size: 1.3rem; }
+
+    /* Modal & Toast */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: var(--card); width: 100%; max-width: 500px;
+      border-radius: 20px 20px 0 0; padding: 20px; max-height: 85vh; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.25s ease;
+    }
+    .modal-overlay.show .modal { transform: translateY(0); }
+    .modal h3 { margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions button { flex: 1; }
+    .toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--card); border: 1px solid var(--border); padding: 12px 20px;
+      border-radius: 12px; font-size: 0.9rem; z-index: 200; opacity: 0;
+      transition: all 0.3s; pointer-events: none; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+    .empty .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .hidden { display: none !important; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .flex { display: flex; }
+    .gap-8 { gap: 8px; }
+    label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; }
+    .form-group { margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"><span>📅 PhotoCalendar</span></div>
+    <div class="header-actions">
+      <button class="icon" id="btn-search" title="Search">🔍</button>
+      <button class="icon" id="btn-menu" title="Menu">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- CALENDAR VIEW -->
+    <section id="view-calendar">
+      <div class="calendar-header">
+        <button class="icon" id="prev-month">‹</button>
+        <h2 id="month-label">November 2026</h2>
+        <button class="icon" id="next-month">›</button>
+      </div>
+      <div class="weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
+        <div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="days" id="calendar-days"></div>
+
+      <div id="day-panel" class="day-panel hidden">
+        <div class="day-panel-header">
+          <h3 id="selected-date-label">14 November 2026</h3>
+          <button class="icon" id="close-panel">✕</button>
+        </div>
+        <div class="day-panel-body">
+
+          <!-- Notes -->
+          <label>Notes</label>
+          <textarea id="note-input" placeholder="Write something about this day..."></textarea>
+
+          <!-- Expenses -->
+          <div class="expense-section">
+            <h4>💰 Expenses</h4>
+            <div class="expense-form">
+              <select id="exp-category">
+                <option value="Food">Food</option>
+                <option value="Travel">Travel</option>
+                <option value="Tickets">Tickets</option>
+                <option value="Lodge">Lodge</option>
+                <option value="Other">Other</option>
+              </select>
+              <input type="number" id="exp-amount" placeholder="Amount" min="0" step="1" />
+              <button class="primary" id="btn-add-expense" style="padding: 8px 12px;">+</button>
+            </div>
+            <div class="expense-list" id="expense-list"></div>
+            <div class="daily-total">
+              <span>Day Total</span>
+              <span id="day-total">₹ 0</span>
+            </div>
+          </div>
+
+          <!-- Photos -->
+          <div class="mt-16">
+            <label>Photos</label>
+            <div class="photo-grid" id="photo-grid"></div>
+          </div>
+
+          <div class="mt-16 flex gap-8">
+            <button class="primary" id="btn-save" style="flex:1">💾 Save</button>
+            <button class="danger" id="btn-delete-day">🗑️</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIST / SEARCH VIEW -->
+    <section id="view-list" class="hidden">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search notes or expenses..." />
+      </div>
+      <div class="entry-list" id="entry-list"></div>
+    </section>
+
+    <!-- SUMMARY VIEW -->
+    <section id="view-summary" class="hidden">
+      <div class="section">
+        <h3>Expense Summary</h3>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="label">This Week</div>
+            <div class="value" id="sum-week">₹ 0</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">This Month</div>
+            <div class="value" id="sum-month">₹ 0</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">This Year</div>
+            <div class="value" id="sum-year">₹ 0</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">All Time</div>
+            <div class="value" id="sum-all">₹ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Category Breakdown (This Month)</h3>
+        <div id="category-breakdown" class="expense-list"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="hidden">
+      <div class="section">
+        <h3>Data</h3>
+        <button id="btn-export" style="width:100%; margin-bottom:10px">📤 Export Backup</button>
+        <button id="btn-import" style="width:100%; margin-bottom:10px">📥 Import Backup</button>
+        <input type="file" id="import-file" accept=".json" class="hidden" />
+        <button class="danger" id="btn-clear-all" style="width:100%">🗑️ Clear All Data</button>
+      </div>
+      <div class="section">
+        <h3>About</h3>
+        <p style="color:var(--text-muted); font-size:0.9rem;">
+          Everything (photos, notes, expenses) is stored only on your device.
+          Nothing is uploaded anywhere.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom">
+    <button id="nav-calendar" class="active"><span class="icon">📅</span>Calendar</button>
+    <button id="nav-list"><span class="icon">📋</span>Entries</button>
+    <button id="nav-summary"><span class="icon">💰</span>Summary</button>
+    <button id="nav-settings"><span class="icon">⚙️</span>Settings</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const DB_NAME = 'PhotoCalendarDB';
+    const DB_VERSION = 2;
+    let db;
+    let currentYear, currentMonth;
+    let selectedDate = null;
+    let datesWithData = new Set();
+    let currentPhotos = [];
+    let currentExpenses = [];
+
+    // ---------- DB ----------
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const database = e.target.result;
+          if (!database.objectStoreNames.contains('entries')) {
+            database.createObjectStore('entries', { keyPath: 'date' });
+          }
+        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async function getEntry(date) {
+      return new Promise((res, rej) => {
+        const tx = db.transaction('entries', 'readonly');
+        const r = tx.objectStore('entries').get(date);
+        r.onsuccess = () => res(r.result || null);
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    async function saveEntry(entry) {
+      entry.updated = Date.now();
+      return new Promise((res, rej) => {
+        const tx = db.transaction('entries', 'readwrite');
+        const r = tx.objectStore('entries').put(entry);
+        r.onsuccess = () => res();
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    async function deleteEntry(date) {
+      return new Promise((res, rej) => {
+        const tx = db.transaction('entries', 'readwrite');
+        const r = tx.objectStore('entries').delete(date);
+        r.onsuccess = () => res();
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    async function getAllEntries() {
+      return new Promise((res, rej) => {
+        const tx = db.transaction('entries', 'readonly');
+        const r = tx.objectStore('entries').getAll();
+        r.onsuccess = () => res(r.result || []);
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    // ---------- Helpers ----------
+    function formatDate(y, m, d) {
+      return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+    function parseDate(str) {
+      const [y, m, d] = str.split('-').map(Number);
+      return new Date(y, m-1, d);
+    }
+    function formatDisplayDate(str) {
+      return parseDate(str).toLocaleDateString('en-IN', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+    }
+    function showToast(msg, ms = 2200) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), ms);
+    }
+    function fileToDataURL(file) {
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+    }
+    function rupee(n) {
+      return '₹ ' + (Number(n) || 0).toLocaleString('en-IN');
+    }
+
+    // ---------- Calendar ----------
+    function renderCalendar() {
+      const label = document.getElementById('month-label');
+      const container = document.getElementById('calendar-days');
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      label.textContent = `${months[currentMonth]} ${currentYear}`;
+
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const daysInPrev = new Date(currentYear, currentMonth, 0).getDate();
+
+      container.innerHTML = '';
+
+      for (let i = firstDay - 1; i >= 0; i--) {
+        const d = daysInPrev - i;
+        container.appendChild(createDayEl(d, formatDate(currentYear, currentMonth - 1, d), true));
+      }
+
+      const today = new Date();
+      const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = formatDate(currentYear, currentMonth, d);
+        const el = createDayEl(d, dateStr, false);
+        if (dateStr === todayStr) el.classList.add('today');
+        if (dateStr === selectedDate) el.classList.add('selected');
+        container.appendChild(el);
+      }
+
+      const total = container.children.length;
+      for (let d = 1; d <= 42 - total; d++) {
+        container.appendChild(createDayEl(d, formatDate(currentYear, currentMonth + 1, d), true));
+      }
+    }
+
+    function createDayEl(num, dateStr, other) {
+      const el = document.createElement('div');
+      el.className = 'day' + (other ? ' other-month' : '');
+      if (datesWithData.has(dateStr)) el.classList.add('has-data');
+      el.textContent = num;
+      el.dataset.date = dateStr;
+      el.onclick = () => selectDate(dateStr);
+      return el;
+    }
+
+    async function selectDate(dateStr) {
+      selectedDate = dateStr;
+      renderCalendar();
+      const panel = document.getElementById('day-panel');
+      panel.classList.remove('hidden');
+      document.getElementById('selected-date-label').textContent = formatDisplayDate(dateStr);
+
+      const entry = await getEntry(dateStr);
+      document.getElementById('note-input').value = entry?.note || '';
+      currentPhotos = entry?.photos ? [...entry.photos] : [];
+      currentExpenses = entry?.expenses ? [...entry.expenses] : [];
+      renderPhotos();
+      renderExpenses();
+    }
+
+    // ---------- Expenses ----------
+    function renderExpenses() {
+      const list = document.getElementById('expense-list');
+      list.innerHTML = '';
+      let total = 0;
+      currentExpenses.forEach((e, idx) => {
+        total += Number(e.amount) || 0;
+        const div = document.createElement('div');
+        div.className = 'expense-item';
+        div.innerHTML = `
+          <div><span class="cat">${e.category}</span> ${e.note ? '· ' + e.note : ''}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="amt">${rupee(e.amount)}</span>
+            <button class="del" data-idx="${idx}">✕</button>
+          </div>`;
+        list.appendChild(div);
+      });
+      document.getElementById('day-total').textContent = rupee(total);
+
+      list.querySelectorAll('.del').forEach(btn => {
+        btn.onclick = () => {
+          currentExpenses.splice(parseInt(btn.dataset.idx), 1);
+          renderExpenses();
+        };
+      });
+    }
+
+    document.getElementById('btn-add-expense').onclick = () => {
+      const cat = document.getElementById('exp-category').value;
+      const amount = parseFloat(document.getElementById('exp-amount').value);
+      if (!amount || amount <= 0) {
+        showToast('Enter a valid amount');
+        return;
+      }
+      currentExpenses.push({
+        id: Date.now() + Math.random().toString(36).slice(2),
+        category: cat,
+        amount: amount,
+        note: ''
+      });
+      document.getElementById('exp-amount').value = '';
+      renderExpenses();
+    };
+
+    // ---------- Photos ----------
+    function renderPhotos() {
+      const grid = document.getElementById('photo-grid');
+      grid.innerHTML = '';
+      currentPhotos.forEach((p, idx) => {
+        const div = document.createElement('div');
+        div.className = 'photo-item';
+        div.innerHTML = `<img src="${p.dataUrl}" loading="lazy" /><button class="delete-photo" data-idx="${idx}">✕</button>`;
+        grid.appendChild(div);
+      });
+      const add = document.createElement('div');
+      add.className = 'add-photo-btn';
+      add.innerHTML = `<span style="font-size:1.4rem">+</span><span>Add</span>`;
+      add.onclick = () => document.getElementById('photo-input').click();
+      grid.appendChild(add);
+
+      grid.querySelectorAll('.delete-photo').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          currentPhotos.splice(parseInt(btn.dataset.idx), 1);
+          renderPhotos();
+        };
+      });
+    }
+
+    const photoInput = document.createElement('input');
+    photoInput.type = 'file';
+    photoInput.accept = 'image/*';
+    photoInput.multiple = true;
+    photoInput.id = 'photo-input';
+    photoInput.className = 'hidden';
+    document.body.appendChild(photoInput);
+    photoInput.onchange = async (e) => {
+      for (const file of Array.from(e.target.files || [])) {
+        if (!file.type.startsWith('image/')) continue;
+        try {
+          const dataUrl = await fileToDataURL(file);
+          currentPhotos.push({ id: Date.now() + Math.random().toString(36).slice(2), dataUrl, name: file.name });
+        } catch {}
+      }
+      renderPhotos();
+      photoInput.value = '';
+    };
+
+    // ---------- Save / Delete ----------
+    async function saveCurrentDay() {
+      if (!selectedDate) return;
+      const entry = {
+        date: selectedDate,
+        note: document.getElementById('note-input').value.trim(),
+        photos: currentPhotos,
+        expenses: currentExpenses,
+        updated: Date.now()
+      };
+      await saveEntry(entry);
+      datesWithData.add(selectedDate);
+      renderCalendar();
+      showToast('Saved ✓');
+    }
+
+    async function deleteCurrentDay() {
+      if (!selectedDate || !confirm('Delete all data for this day?')) return;
+      await deleteEntry(selectedDate);
+      datesWithData.delete(selectedDate);
+      currentPhotos = [];
+      currentExpenses = [];
+      document.getElementById('note-input').value = '';
+      renderPhotos();
+      renderExpenses();
+      document.getElementById('day-panel').classList.add('hidden');
+      selectedDate = null;
+      renderCalendar();
+      showToast('Deleted');
+    }
+
+    // ---------- Summary ----------
+    async function updateSummary() {
+      const entries = await getAllEntries();
+      const now = new Date();
+      const thisYear = now.getFullYear();
+      const thisMonth = now.getMonth();
+      // Start of week (Sunday)
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0,0,0,0);
+
+      let week = 0, month = 0, year = 0, all = 0;
+      const catMonth = {};
+
+      entries.forEach(e => {
+        const d = parseDate(e.date);
+        const total = (e.expenses || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+        all += total;
+        if (d.getFullYear() === thisYear) {
+          year += total;
+          if (d.getMonth() === thisMonth) {
+            month += total;
+            (e.expenses || []).forEach(x => {
+              catMonth[x.category] = (catMonth[x.category] || 0) + (Number(x.amount) || 0);
+            });
+          }
+        }
+        if (d >= startOfWeek) week += total;
+      });
+
+      document.getElementById('sum-week').textContent = rupee(week);
+      document.getElementById('sum-month').textContent = rupee(month);
+      document.getElementById('sum-year').textContent = rupee(year);
+      document.getElementById('sum-all').textContent = rupee(all);
+
+      const breakdown = document.getElementById('category-breakdown');
+      const cats = Object.entries(catMonth).sort((a,b) => b[1] - a[1]);
+      if (cats.length === 0) {
+        breakdown.innerHTML = '<div class="empty"><div class="icon">💸</div><p>No expenses this month</p></div>';
+      } else {
+        breakdown.innerHTML = cats.map(([cat, amt]) => `
+          <div class="expense-item">
+            <span class="cat">${cat}</span>
+            <span class="amt">${rupee(amt)}</span>
+          </div>`).join('');
+      }
+    }
+
+    // ---------- List ----------
+    async function renderEntryList(filter = '') {
+      const list = document.getElementById('entry-list');
+      let entries = await getAllEntries();
+      entries.sort((a, b) => b.date.localeCompare(a.date));
+
+      if (filter) {
+        const q = filter.toLowerCase();
+        entries = entries.filter(e =>
+          (e.note && e.note.toLowerCase().includes(q)) ||
+          e.date.includes(q) ||
+          (e.expenses || []).some(x => x.category.toLowerCase().includes(q))
+        );
+      }
+
+      if (entries.length === 0) {
+        list.innerHTML = `<div class="empty"><div class="icon">📝</div><p>${filter ? 'No matches' : 'No entries yet'}</p></div>`;
+        return;
+      }
+
+      list.innerHTML = entries.map(e => {
+        const expTotal = (e.expenses || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+        return `
+          <div class="entry-card" data-date="${e.date}">
+            <div class="date">${formatDisplayDate(e.date)}</div>
+            <div class="preview">${e.note || '(no notes)'}</div>
+            <div class="meta">
+              ${e.photos?.length ? `📷 ${e.photos.length}` : ''}
+              ${expTotal ? `💰 ${rupee(expTotal)}` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      list.querySelectorAll('.entry-card').forEach(card => {
+        card.onclick = () => {
+          const date = card.dataset.date;
+          switchView('calendar');
+          const d = parseDate(date);
+          currentYear = d.getFullYear();
+          currentMonth = d.getMonth();
+          renderCalendar();
+          selectDate(date);
+        };
+      });
+    }
+
+    // ---------- Export / Import ----------
+    async function exportData() {
+      const entries = await getAllEntries();
+      const data = { version: 2, exportedAt: new Date().toISOString(), entries };
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `photocalendar-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Backup exported');
+    }
+
+    async function importData(file) {
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.entries) throw new Error('Invalid file');
+        for (const e of data.entries) await saveEntry(e);
+        datesWithData = new Set((await getAllEntries()).map(e => e.date));
+        renderCalendar();
+        showToast(`Imported ${data.entries.length} entries`);
+      } catch (err) {
+        showToast('Import failed');
+      }
+    }
+
+    async function clearAllData() {
+      if (!confirm('Delete ALL data permanently?') || !confirm('Are you sure?')) return;
+      const entries = await getAllEntries();
+      for (const e of entries) await deleteEntry(e.date);
+      datesWithData.clear();
+      selectedDate = null;
+      document.getElementById('day-panel').classList.add('hidden');
+      renderCalendar();
+      showToast('All data cleared');
+    }
+
+    // ---------- Navigation ----------
+    function switchView(view) {
+      ['calendar', 'list', 'summary', 'settings'].forEach(v => {
+        document.getElementById('view-' + v).classList.toggle('hidden', v !== view);
+        document.getElementById('nav-' + v).classList.toggle('active', v === view);
+      });
+      if (view === 'list') renderEntryList(document.getElementById('search-input').value);
+      if (view === 'summary') updateSummary();
+    }
+
+    // ---------- Init ----------
+    async function init() {
+      await openDB();
+      const now = new Date();
+      currentYear = now.getFullYear();
+      currentMonth = now.getMonth();
+      const all = await getAllEntries();
+      datesWithData = new Set(all.map(e => e.date));
+      renderCalendar();
+
+      document.getElementById('prev-month').onclick = () => {
+        currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        renderCalendar();
+      };
+      document.getElementById('next-month').onclick = () => {
+        currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        renderCalendar();
+      };
+      document.getElementById('close-panel').onclick = () => {
+        document.getElementById('day-panel').classList.add('hidden');
+        selectedDate = null;
+        renderCalendar();
+      };
+      document.getElementById('btn-save').onclick = saveCurrentDay;
+      document.getElementById('btn-delete-day').onclick = deleteCurrentDay;
+
+      document.getElementById('nav-calendar').onclick = () => switchView('calendar');
+      document.getElementById('nav-list').onclick = () => switchView('list');
+      document.getElementById('nav-summary').onclick = () => switchView('summary');
+      document.getElementById('nav-settings').onclick = () => switchView('settings');
+      document.getElementById('btn-search').onclick = () => switchView('list');
+      document.getElementById('btn-menu').onclick = () => switchView('settings');
+
+      document.getElementById('search-input').oninput = (e) => renderEntryList(e.target.value);
+      document.getElementById('btn-export').onclick = exportData;
+      document.getElementById('btn-import').onclick = () => document.getElementById('import-file').click();
+      document.getElementById('import-file').onchange = (e) => {
+        if (e.target.files[0]) importData(e.target.files[0]);
+      };
+      document.getElementById('btn-clear-all').onclick = clearAllData;
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      }
+    }
+
+    init().catch(console.error);
+  </script>
+</body>
+</html>
